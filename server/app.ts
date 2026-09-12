@@ -24,7 +24,7 @@ export function createApp(config: Config, providers: Providers = realProviders(c
       const url = new URL(request.url || '/', 'http://localhost')
       if (url.pathname === '/health') {
         response.setHeader('Content-Type', 'application/json')
-        response.end(JSON.stringify({ ok: true, app: 'even-translator', version: '0.2.3' }))
+        response.end(JSON.stringify({ ok: true, app: 'even-translator', version: '0.2.4' }))
         return
       }
       let pathname: string

@@ -29,27 +29,9 @@ export type ServerMessage =
   | { type: 'stopped' }
 
 export const defaultProfile: Profile = {
-  title: 'ACM CSCW — Q&A',
-  context: 'An academic question-and-answer session at ACM CSCW (Computer-Supported Cooperative Work and Social Computing). Translate the audience questions from English into Japanese. No specific paper has been provided.',
-  glossary: [
-    { en: 'CSCW', ja: 'CSCW' },
-    { en: 'computer-supported cooperative work', ja: 'コンピュータ支援協調作業' },
-    { en: 'social computing', ja: 'ソーシャルコンピューティング' },
-    { en: 'human-computer interaction', ja: 'ヒューマンコンピュータインタラクション' },
-    { en: 'HCI', ja: 'HCI' },
-    { en: 'thematic analysis', ja: 'テーマ分析' },
-    { en: 'grounded theory', ja: 'グラウンデッド・セオリー' },
-    { en: 'ethnography', ja: 'エスノグラフィー' },
-    { en: 'positionality', ja: 'ポジショナリティ' },
-    { en: 'reflexivity', ja: '再帰性' },
-    { en: 'inter-rater reliability', ja: '評価者間信頼性' },
-    { en: 'generalizability', ja: '一般化可能性' },
-    { en: 'participatory design', ja: '参加型デザイン' },
-    { en: 'affordance', ja: 'アフォーダンス' },
-    { en: 'sociotechnical', ja: '社会技術的' },
-    { en: 'mixed methods', ja: '混合研究法' },
-    { en: 'qualitative research', ja: '質的研究' },
-  ],
+  title: 'English → Japanese',
+  context: 'Translate English speech into Japanese. No specific topic or background has been provided.',
+  glossary: [],
 }
 
 export function parseGlossary(text: string): Profile['glossary'] {

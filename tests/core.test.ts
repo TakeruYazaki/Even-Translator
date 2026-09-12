@@ -39,11 +39,11 @@ test('Japanese subtitle pagination retains all content, including surrogate pair
   assert.equal(pages.join('').replace(/\n/g, ''), text)
   for (const page of pages) { assert.ok(page.split('\n').length <= 5); for (const line of page.split('\n')) assert.ok(Array.from(line).reduce((sum, char) => sum + (/^[\x20-\x7e]$/.test(char) ? 1 : 2), 0) <= 44) }
 })
-test('CSCW profile is valid; glossary values are encoded as separate Deepgram keyterms', () => {
+test('Generic profile is valid; glossary values are encoded as separate Deepgram keyterms', () => {
   assert.ok(profileSchema.safeParse(defaultProfile).success)
-  const profile = { ...defaultProfile, glossary: parseGlossary('HCI = HCI\nparticipatory design = 参加型デザイン\n\nCSCW') }
+  const profile = { ...defaultProfile, glossary: parseGlossary('HCI = HCI\nparticipatory design = 参加型デザイン\n\nAPI') }
   const url = deepgramUrl(profile)
-  assert.deepEqual(url.searchParams.getAll('keyterm'), ['HCI', 'participatory design', 'CSCW'])
+  assert.deepEqual(url.searchParams.getAll('keyterm'), ['HCI', 'participatory design', 'API'])
   assert.equal(url.searchParams.get('sample_rate'), '16000')
   assert.equal(url.searchParams.get('encoding'), 'linear16')
   assert.equal(url.searchParams.get('language'), 'en')

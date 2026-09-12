@@ -268,7 +268,7 @@ async function connectGlasses() {
   bridge = await waitForEvenAppBridge()
   const result = await bridge.createStartUpPageContainer(new CreateStartUpPageContainer({ containerTotalNum: 1, textObject: [new TextContainerProperty({
     xPosition: 0, yPosition: 0, width: 576, height: 288, borderWidth: 0, borderColor: 5, paddingLength: 8,
-    containerID: 1, containerName: 'main', content: 'CSCW 翻訳\n英語 → 日本語\nタップで開始\n設定はスマホで変更できます。', isEventCapture: 1,
+    containerID: 1, containerName: 'main', content: 'Even Translator\n英語 → 日本語\nタップで開始\n設定はスマホで変更できます。', isEventCapture: 1,
   })] }))
   if (result !== 0) throw new Error(`G2画面の作成に失敗しました (${result})`)
   bridgeReady = true; $('bridge-status').textContent = 'Even App接続済み · G2画面作成API成功'; $<HTMLButtonElement>('exit').disabled = false
@@ -335,9 +335,9 @@ $('latest').addEventListener('click', () => { if (pages.length) { pageIndex = pa
 $('clear').addEventListener('click', () => { history.length = 0; pages = []; pageIndex = -1; followLive = true; clearTimeout(pageTimer); pageTimer = undefined; renderHistory(); updateCaption() })
 mode.addEventListener('change', updateCaption)
 $('export').addEventListener('click', () => {
-  const contents = JSON.stringify({ version: '0.2.3', exportedAt: new Date().toISOString(), title: input('title').value, history, diagnostics, metrics: diagnosticSnapshot() }, null, 2)
+  const contents = JSON.stringify({ version: '0.2.4', exportedAt: new Date().toISOString(), title: input('title').value, history, diagnostics, metrics: diagnosticSnapshot() }, null, 2)
   const url = URL.createObjectURL(new Blob([contents], { type: 'application/json' }))
-  const link = document.createElement('a'); link.href = url; link.download = `cscw-translation-${Date.now()}.json`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000)
+  const link = document.createElement('a'); link.href = url; link.download = `even-translation-${Date.now()}.json`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000)
 })
 window.addEventListener('pagehide', cleanup)
 if (import.meta.hot) import.meta.hot.dispose(cleanup)

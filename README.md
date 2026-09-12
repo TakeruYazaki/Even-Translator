@@ -1,6 +1,6 @@
-# CSCW Translator — Even G2 / Android
+# Even Translator — Even G2 / Android
 
-Galaxy S24（Android 16）とEven G2向けの英語→日本語字幕アプリ。現在のバージョンは **0.2.3** です。
+Galaxy S24（Android 16）とEven G2向けの英語→日本語字幕アプリ。現在のバージョンは **0.2.4** です。
 Heroku配置・実機接続の手順は [docs/heroku.md](docs/heroku.md) を参照してください。
 G2マイク → スマホのEven Hub WebView → Node.jsバックエンド → Deepgram Nova-3 → OpenAI Responses API → G2字幕、の構成です。
 
@@ -11,7 +11,7 @@ G2マイク → スマホのEven Hub WebView → Node.jsバックエンド → D
 - G2マイクのPCM16 LE / 16 kHz / mono音声を取得。スマホマイクには自動で切り替えません。
 - API不要のマイク確認モード（音量、音声秒数、フレーム数、最大受信間隔）。
 - Deepgram Nova-3英語ストリーミング、途中の原文表示、確定区間の翻訳。
-- CSCW共通用語の初期辞書、英日訳語編集、発表概要の入力、TXT/MD読込み。
+- 用途に合わせた専門用語登録、英日訳語編集、背景情報の入力、TXT/MD読込み。
 - OpenAIによる日本語訳。初期モデルは `gpt-4.1-mini`。`.env` の `OPENAI_MODEL` で変更可能。
 - 否定・数値・単位・条件・統計的有意性を保ち、質問に回答せず訳す指示。
 - 長い訳文をG2の複数ページに分け、順番に表示。前後移動と「最新へ」。
@@ -138,7 +138,7 @@ Dockerfileを用意しています（Dockerビルド/クラウド配置自体は
 ## 構成
 
 - `src/`: スマホUI・G2操作・音声バッチ・字幕ページ分割
-- `shared/`: 通信型と発表情報の検証、初期CSCW辞書
+- `shared/`: 通信型と背景情報の検証、汎用の初期設定
 - `server/`: WebSocket認証、音声認識、翻訳キュー、静的配信
 - `scripts/`: 起動、パッケージ、QR、設定、実APIテスト
 - `tests/`: 自動テスト。模擬SDKはテスト時だけ注入し、本番へは含めない
