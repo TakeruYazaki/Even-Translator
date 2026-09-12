@@ -10,7 +10,11 @@ const mode = $<HTMLSelectElement>('mode'), fields = $<HTMLFieldSetElement>('sett
 const status = $('status'), errorBox = $('error'), caption = $('caption'), interim = $('interim')
 const input = (id: string) => $<HTMLInputElement>(id)
 const area = (id: string) => $<HTMLTextAreaElement>(id)
-type Phase = 'idle' | 'starting' | 'listening' | 'stopping' | 'error' | 'exited'
+type Phase = 'idle' | 'starting' | 'reconnecting' | 'listening' | 'stopping' | 'error' | 'exited'
+class TransportError extends Error {}
+let reconnectTimer: ReturnType<typeof setTimeout> | undefined
+let reconnectAttempts = 0, connectedAt = 0
+function cancelReconnect() { clearTimeout(reconnectTimer); reconnectTimer = undefined }
 let phase: Phase = 'idle', bridge: EvenAppBridge | undefined, bridgeReady = false
 let socket: WebSocket | undefined, runId = 0, activeMic = false, micMayBeOpen = false
 let micQueue: Promise<unknown> = Promise.resolve()
@@ -31,10 +35,10 @@ function log(event: string) { diagnostics.push({ at: new Date().toISOString(), e
 function showError(message: string) { errorBox.hidden = false; errorBox.textContent = message; log(message) }
 function setPhase(next: Phase, message: string) {
   phase = next; status.textContent = message
-  $('state').textContent = { idle: '待機', starting: '接続中', listening: mode.value === 'diagnostic' ? 'マイク確認中' : '翻訳中', stopping: '完了待ち', error: '停止・要確認', exited: '終了' }[phase]
-  const busy = ['starting', 'listening', 'stopping'].includes(phase)
+  $('state').textContent = { idle: '待機', starting: '接続中', reconnecting: '再接続中', listening: mode.value === 'diagnostic' ? 'マイク確認中' : '翻訳中', stopping: '完了待ち', error: '停止・要確認', exited: '終了' }[phase]
+  const busy = ['starting', 'reconnecting', 'listening', 'stopping'].includes(phase)
   startButton.disabled = !bridgeReady || busy || phase === 'exited'
-  stopButton.disabled = !['starting', 'listening'].includes(phase)
+  stopButton.disabled = !['starting', 'reconnecting', 'listening'].includes(phase)
   mode.disabled = busy; fields.disabled = busy; $<HTMLButtonElement>('clear').disabled = busy
   log(`state:${next}`); updateCaption()
 }
@@ -81,7 +85,7 @@ function addSubtitle(text: string) {
   updateCaption(); advanceLater()
 }
 function updateCaption() {
-  const body = pages[pageIndex] || (mode.value === 'diagnostic' && activeMic
+  const body = phase === 'reconnecting' ? '通信が切れました。再接続しています。\n切断中の音声は翻訳されません。\nタップで再接続を中止' : pages[pageIndex] || (mode.value === 'diagnostic' && activeMic
     ? `マイク確認中\n受信: ${(bytes / 32000).toFixed(1)} 秒\nフレーム: ${frames}\n最大間隔: ${(maxFrameGapMs / 1000).toFixed(1)} 秒\nタップで停止`
     : '英語の質問を日本語で表示します。\nタップで開始・停止')
   caption.textContent = body
@@ -142,9 +146,23 @@ function micCommand(open: boolean) {
 }
 function closeSocket() { clearInterval(pingTimer); clearInterval(audioFlushTimer); clearTimeout(stopTimer); socket?.close(); socket = undefined; batcher.clear() }
 function fail(message: string) {
+  cancelReconnect()
   showError(message); ++runId; closeSocket()
   void micOff().catch(error => showError(error.message)); markUntranslated()
   if (phase !== 'exited') setPhase('error', '停止しました。接続状態を確認して再開してください。')
+}
+async function recoverConnection(message: string) {
+  if (phase === 'reconnecting' || !['starting', 'listening'].includes(phase)) return
+  if (connectedAt && Date.now() - connectedAt > 30000) reconnectAttempts = 0
+  connectedAt = 0
+  if (reconnectAttempts >= 6) { fail('再接続できませんでした。回線を確認して「開始」を押してください。'); return }
+  const delay = Math.min(15000, 1000 * 2 ** reconnectAttempts++)
+  const run = ++runId
+  closeSocket(); markUntranslated(); interim.textContent = '—'
+  setPhase('reconnecting', `${message} ${delay / 1000}秒後に再接続します（${reconnectAttempts}/6）。切断中の音声は翻訳されません。`)
+  try { await micOff() } catch (error) { if (run === runId) fail((error as Error).message); return }
+  if (run !== runId) return
+  reconnectTimer = setTimeout(() => { reconnectTimer = undefined; if (run === runId) void startCapture(true) }, delay)
 }
 function onServer(message: ServerMessage, run: number) {
   if (run !== runId || phase === 'exited') return
@@ -171,18 +189,29 @@ async function connect(run: number) {
     let ready = false
     ws.onopen = () => { if (run === runId) ws.send(JSON.stringify({ type: 'start', token, profile })) }
     ws.onmessage = event => {
+      if (run !== runId) return
       let message: ServerMessage
       try { message = JSON.parse(event.data) } catch { reject(new Error('サーバー応答が不正です。')); return }
       if (message.type === 'ready') { ready = true; resolve() }
       else if (message.type === 'error' && !ready) reject(new Error(message.message))
       else onServer(message, run)
     }
-    ws.onerror = () => { if (!ready) reject(new Error('バックエンドに接続できません。URLとPCのサーバーを確認してください。')) }
-    ws.onclose = () => { if (!ready) reject(new Error('開始前に接続が切れました。')); if (run === runId && ['listening', 'stopping'].includes(phase)) fail('通信が切れました。途切れた区間は翻訳されません。再開してください。') }
-  }), 15000, '音声認識サービスへの接続がタイムアウトしました。')
+    ws.onerror = () => { if (!ready) reject(new TransportError('バックエンドに接続できません。')) }
+    ws.onclose = () => {
+      if (!ready) reject(new TransportError('開始前に接続が切れました。'))
+      if (run !== runId) return
+      if (ready && ['starting', 'listening'].includes(phase)) void recoverConnection('通信が切れました。')
+      else if (phase === 'stopping') fail('停止中に通信が切れました。未受信の訳は履歴を確認してください。')
+    }
+  }), 15000, '音声認識サービスへの接続がタイムアウトしました。').catch(error => {
+    if (error instanceof Error && error.message === '音声認識サービスへの接続がタイムアウトしました。') throw new TransportError(error.message)
+    throw error
+  })
 }
-async function startCapture() {
-  if (!bridge || !bridgeReady || !['idle', 'error'].includes(phase)) return
+async function startCapture(reconnecting = false) {
+  if (!bridge || !bridgeReady || !(reconnecting ? phase === 'reconnecting' : ['idle', 'error'].includes(phase))) return
+  cancelReconnect()
+  if (!reconnecting) reconnectAttempts = 0
   errorBox.hidden = true; errorBox.textContent = ''
   const run = ++runId
   bytes = 0; frames = 0; lastFrameAt = 0; maxFrameGapMs = 0; startedAt = Date.now(); stoppedAt = 0; serverAudioSeconds = 0; serverGapMs = 0; queueDepth = 0; lastServerAt = 0
@@ -192,22 +221,25 @@ async function startCapture() {
     if (micMayBeOpen) await micOff()
     if (mode.value === 'translate') { saveSettings(); await connect(run) }
     if (run !== runId) return
+    if (mode.value === 'translate' && socket?.readyState !== WebSocket.OPEN) throw new TransportError('接続が切れました。')
     micMayBeOpen = true
     const opening = micCommand(true)
     const opened = await timeout(opening, 10000, 'G2マイクの開始応答がありません。アプリの権限を確認してください。')
     if (run !== runId) { await micOff(); return }
     if (!opened) throw new Error('G2マイクを開始できませんでした。Even Appの権限とG2接続を確認してください。')
     activeMic = true; startedAt = Date.now(); stoppedAt = 0
+    connectedAt = Date.now(); lastServerAt = Date.now()
     setPhase('listening', mode.value === 'diagnostic' ? 'G2の音声受信を確認中です。APIへは送信していません。' : '英語の質問を聞いています。意味のまとまりごとに日本語を表示します。')
     if (mode.value === 'translate') {
       pingTimer = setInterval(() => { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'ping' })) }, 3000)
-      audioFlushTimer = setInterval(() => { if (activeMic) { try { batcher.flush() } catch (error) { fail((error as Error).message) } } }, 150)
+      audioFlushTimer = setInterval(() => { if (activeMic) { try { batcher.flush() } catch (error) { void recoverConnection((error as Error).message) } } }, 150)
     }
-  } catch (error) { if (run === runId) fail(error instanceof Error ? error.message : '開始に失敗しました。') }
+  } catch (error) { if (run === runId) { if (error instanceof TransportError) void recoverConnection(error.message); else fail(error instanceof Error ? error.message : '開始に失敗しました。') } }
 }
 async function stopCapture() {
-  if (!['starting', 'listening'].includes(phase)) return
-  const starting = phase === 'starting'
+  if (!['starting', 'reconnecting', 'listening'].includes(phase)) return
+  cancelReconnect()
+  const starting = phase === 'starting' || phase === 'reconnecting'
   if (starting) ++runId
   setPhase('stopping', 'マイクを停止し、残りの翻訳を受信しています…')
   try {
@@ -219,6 +251,7 @@ async function stopCapture() {
   } catch (error) { fail(error instanceof Error ? error.message : '停止に失敗しました。') }
 }
 async function exitApp() {
+  cancelReconnect()
   ++runId; closeSocket(); markUntranslated()
   try { await micOff() } catch (error) { showError((error as Error).message) }
   if (!bridge) return
@@ -226,6 +259,7 @@ async function exitApp() {
   catch (error) { showError((error as Error).message); setPhase('error', '翻訳は停止しました。アプリの終了を確認してください。') }
 }
 function cleanup() {
+  cancelReconnect()
   ++runId; activeMic = false; closeSocket(); clearTimeout(pageTimer); clearTimeout(renderTimer); clearInterval(diagnosticsTimer); unsubscribe()
   void micOff().catch(error => showError(error.message)); setPhase('exited', '終了しました。再び利用する場合はアプリを開き直してください。')
 }
@@ -246,10 +280,10 @@ async function connectGlasses() {
     if (pcm && activeMic && event.audioEvent?.source === AudioInputSource.Glasses) {
       const now = Date.now(); if (lastFrameAt) maxFrameGapMs = Math.max(maxFrameGapMs, now - lastFrameAt)
       lastFrameAt = now; frames++; bytes += pcm.byteLength; microphoneLevel = pcmLevel(pcm)
-      if (mode.value === 'translate') { try { batcher.push(pcm) } catch (error) { fail((error as Error).message) } }
+      if (mode.value === 'translate') { try { batcher.push(pcm) } catch (error) { void recoverConnection((error as Error).message) } }
       return
     }
-    if (types.includes(OsEventTypeList.CLICK_EVENT)) { if (phase === 'listening') void stopCapture(); else if (phase === 'idle' || phase === 'error') void startCapture() }
+    if (types.includes(OsEventTypeList.CLICK_EVENT)) { if (['starting', 'reconnecting', 'listening'].includes(phase)) void stopCapture(); else if (phase === 'idle' || phase === 'error') void startCapture() }
     else if (types.includes(OsEventTypeList.SCROLL_TOP_EVENT)) movePage(-1)
     else if (types.includes(OsEventTypeList.SCROLL_BOTTOM_EVENT)) movePage(1)
   })
@@ -264,6 +298,7 @@ function diagnosticSnapshot() {
   return { mode: mode.value, state: phase, elapsedSeconds: startedAt ? ((stoppedAt || Date.now()) - startedAt) / 1000 : 0, audioSeconds: bytes / 32000, frames, maxFrameGapMs, serverAudioSeconds, serverGapMs, displayUpdates, queueDepth, latestTranslationLatencyMs: latestLatency, lastFrameAt, lastServerAt }
 }
 const diagnosticsTimer = setInterval(() => {
+  if (phase === 'listening' && mode.value === 'translate' && Date.now() - lastServerAt > 12000) void recoverConnection('サーバーの応答が途切れました。')
   $<HTMLMeterElement>('level').value = Date.now() - lastFrameAt < 1500 ? microphoneLevel : 0
   $('audio-seconds').textContent = `${(bytes / 32000).toFixed(1)} 秒`
   const snapshot = diagnosticSnapshot()
@@ -300,7 +335,7 @@ $('latest').addEventListener('click', () => { if (pages.length) { pageIndex = pa
 $('clear').addEventListener('click', () => { history.length = 0; pages = []; pageIndex = -1; followLive = true; clearTimeout(pageTimer); pageTimer = undefined; renderHistory(); updateCaption() })
 mode.addEventListener('change', updateCaption)
 $('export').addEventListener('click', () => {
-  const contents = JSON.stringify({ version: '0.2.2', exportedAt: new Date().toISOString(), title: input('title').value, history, diagnostics, metrics: diagnosticSnapshot() }, null, 2)
+  const contents = JSON.stringify({ version: '0.2.3', exportedAt: new Date().toISOString(), title: input('title').value, history, diagnostics, metrics: diagnosticSnapshot() }, null, 2)
   const url = URL.createObjectURL(new Blob([contents], { type: 'application/json' }))
   const link = document.createElement('a'); link.href = url; link.download = `cscw-translation-${Date.now()}.json`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000)
 })

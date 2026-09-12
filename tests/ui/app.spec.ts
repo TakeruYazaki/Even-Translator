@@ -79,6 +79,88 @@ test('live captions replace old pages promptly while manual history browsing rem
   await page.click('#latest'); await expect(page.locator('#caption')).toHaveText('三番目の質問です。')
 })
 
+test('network loss retries a failed connection and resumes audio without replaying old speech', async ({ page }) => {
+  let connections = 0, disconnect = () => {}, resumedPackets = 0
+  await page.routeWebSocket('**/ws', ws => {
+    const number = ++connections
+    if (number === 1) disconnect = () => ws.close({ code: 1011 })
+    ws.onMessage(message => {
+      if (typeof message !== 'string') { if (number === 3) resumedPackets++; return }
+      const request = JSON.parse(message)
+      if (request.type === 'start') {
+        if (number === 2) { ws.close({ code: 1011 }); return }
+        ws.send(JSON.stringify({ type: 'ready', sessionId: String(number), model: 'test' }))
+        ws.send(JSON.stringify({ type: 'segment', id: 1, en: number === 1 ? 'Before.' : 'After.', receivedAt: Date.now() }))
+        ws.send(JSON.stringify({ type: 'translation', id: 1, en: number === 1 ? 'Before.' : 'After.', ja: number === 1 ? '切断前です。' : '復帰しました。', latencyMs: 1 }))
+      }
+    })
+  })
+  await page.goto('/'); await page.fill('#token', 'test-connection-code-at-least-24'); await page.click('#start')
+  await expect(page.locator('#state')).toHaveText('翻訳中')
+  disconnect()
+  await expect(page.locator('#state')).toHaveText('再接続中')
+  await expect(page.locator('#caption')).toContainText('切断中の音声は翻訳されません')
+  await expect.poll(() => page.evaluate(() => (window as any).__g2test.micOn)).toBe(false)
+  await expect(page.locator('#caption')).toContainText('復帰しました', { timeout: 7000 })
+  await expect.poll(() => resumedPackets).toBeGreaterThan(0)
+  await expect(page.locator('#history')).toContainText('切断前です。')
+  await expect(page.locator('#history')).toContainText('復帰しました。')
+  expect(connections).toBe(3)
+  expect(await page.evaluate(() => (window as any).__g2test.opens)).toBe(2)
+})
+
+for (const action of ['stop', 'exit'] as const) test(`${action} during reconnect cancels retries and leaves the microphone off`, async ({ page }) => {
+  let connections = 0, disconnect = () => {}
+  await page.routeWebSocket('**/ws', ws => {
+    connections++; disconnect = () => ws.close({ code: 1011 })
+    ws.onMessage(message => {
+      if (typeof message === 'string' && JSON.parse(message).type === 'start') ws.send(JSON.stringify({ type: 'ready', sessionId: 'test', model: 'test' }))
+    })
+  })
+  await page.goto('/'); await page.fill('#token', 'test-connection-code-at-least-24'); await page.click('#start')
+  await expect(page.locator('#state')).toHaveText('翻訳中'); disconnect()
+  await expect(page.locator('#state')).toHaveText('再接続中')
+  await page.click(`#${action}`)
+  await expect(page.locator('#state')).toHaveText(action === 'stop' ? '待機' : '終了')
+  await page.waitForTimeout(1500)
+  expect(connections).toBe(1)
+  expect(await page.evaluate(() => (window as any).__g2test.micOn)).toBe(false)
+})
+
+test('a silent open socket triggers heartbeat recovery', async ({ page }) => {
+  await page.clock.install()
+  let connections = 0
+  await page.routeWebSocket('**/ws', ws => {
+    connections++
+    ws.onMessage(message => {
+      if (typeof message === 'string' && JSON.parse(message).type === 'start') ws.send(JSON.stringify({ type: 'ready', sessionId: 'test', model: 'test' }))
+    })
+  })
+  await page.goto('/'); await page.fill('#token', 'test-connection-code-at-least-24'); await page.click('#start')
+  await expect(page.locator('#state')).toHaveText('翻訳中')
+  await page.clock.runFor(13500)
+  await expect(page.locator('#state')).toHaveText('再接続中')
+  await page.clock.runFor(2000)
+  await expect.poll(() => connections).toBe(2)
+  await expect(page.locator('#state')).toHaveText('翻訳中')
+})
+
+test('persistent network failure stops after six retries', async ({ page }) => {
+  await page.clock.install()
+  let connections = 0
+  await page.routeWebSocket('**/ws', ws => { connections++; ws.close({ code: 1011 }) })
+  await page.goto('/'); await page.fill('#token', 'test-connection-code-at-least-24'); await page.click('#start')
+  for (const delay of [1000, 2000, 4000, 8000, 15000, 15000]) {
+    await expect(page.locator('#state')).toHaveText('再接続中')
+    await page.clock.runFor(delay + 100)
+  }
+  await expect(page.locator('#state')).toHaveText('停止・要確認')
+  await expect(page.locator('#error')).toContainText('再接続できませんでした')
+  await page.clock.runFor(60000)
+  expect(connections).toBe(7)
+  expect(await page.evaluate(() => (window as any).__g2test.opens)).toBe(0)
+})
+
 test('connection failure never starts the G2 microphone', async ({ page }) => {
   await page.routeWebSocket('**/ws', ws => ws.onMessage(() => ws.send(JSON.stringify({ type: 'error', message: '接続コードが違います。' }))))
   await page.goto('/'); await page.fill('#token', 'wrong'); await page.click('#start')

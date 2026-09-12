@@ -1,6 +1,6 @@
 # CSCW Translator — Even G2 / Android
 
-Galaxy S24（Android 16）とEven G2向けの英語→日本語字幕アプリ。現在のバージョンは **0.2.2** です。
+Galaxy S24（Android 16）とEven G2向けの英語→日本語字幕アプリ。現在のバージョンは **0.2.3** です。
 Heroku配置・実機接続の手順は [docs/heroku.md](docs/heroku.md) を参照してください。
 G2マイク → スマホのEven Hub WebView → Node.jsバックエンド → Deepgram Nova-3 → OpenAI Responses API → G2字幕、の構成です。
 
