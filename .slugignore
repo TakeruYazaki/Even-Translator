@@ -1,0 +1,10 @@
+.env
+.env.*
+.local/
+*.ehpk
+*.log
+node_modules/
+dist/
+build-server/
+test-results/
+playwright-report/

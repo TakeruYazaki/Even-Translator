@@ -1,0 +1,41 @@
+{
+  "name": "even-translator",
+  "private": true,
+  "version": "0.2.2",
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:ui": "vite",
+    "dev:server": "node --env-file-if-exists=.env --import tsx server/main.ts",
+    "build": "tsc --noEmit && vite build && npm run build:server",
+    "build:server": "tsc -p tsconfig.server.json",
+    "heroku-postbuild": "npm run build",
+    "pack:heroku": "node scripts/pack-heroku.mjs",
+    "start": "node --env-file-if-exists=.env build-server/server/main.js",
+    "test": "tsx --test tests/*.test.ts",
+    "test:ui": "playwright test",
+    "test:live": "node --env-file-if-exists=.env --import tsx scripts/live-smoke.ts",
+    "preview": "vite preview",
+    "pack": "npm run build && node --env-file-if-exists=.env scripts/pack.mjs",
+    "qr": "node scripts/qr.mjs"
+  },
+  "dependencies": {
+    "@evenrealities/even_hub_sdk": "0.0.15",
+    "ws": "^8.21.3",
+    "zod": "^4.6.1"
+  },
+  "devDependencies": {
+    "@evenrealities/evenhub-cli": "0.1.14",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.2",
+    "@types/ws": "^8.18.1",
+    "qr-image": "3.2.0",
+    "tsx": "^4.23.13",
+    "typescript": "~5.9.3",
+    "vite": "~6.4.3"
+  }
+}

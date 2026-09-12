@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="theme-color" content="#15231d" /><title>CSCW Translator</title></head>
+<body><main>
+  <header><div><p class="eyebrow">EVEN G2 / ACM CSCW</p><h1>質問を、理解する。</h1></div><span class="badge">EN → 日本語</span></header>
+  <p id="bridge-status" class="connection" role="status">Even Appとの接続を待っています…</p>
+  <section class="live card">
+    <div class="row"><h2>ライブ字幕</h2><span id="state" class="badge">待機</span></div>
+    <p id="status" role="status">開始するとG2マイクから音声を取得します。</p><p id="error" role="alert" hidden></p>
+    <pre id="caption" aria-label="G2字幕プレビュー">英語の質問を日本語で表示します。</pre>
+    <div class="row page-controls"><button id="previous" class="secondary">前の字幕</button><span id="page-count">0 / 0</span><button id="next" class="secondary">次の字幕</button><button id="latest" class="secondary">最新へ</button></div>
+    <div class="audio"><span>G2マイク</span><meter id="level" min="0" max="1" value="0" aria-label="音量"></meter><span id="audio-seconds">0.0 秒</span></div>
+    <div class="controls"><label>動作モード<select id="mode"><option value="translate">英語 → 日本語翻訳</option><option value="diagnostic">マイク確認（API不要）</option></select></label><button id="start" disabled>開始</button><button id="stop" class="secondary" disabled>停止</button><button id="exit" class="secondary" disabled>終了</button></div>
+    <p class="hint">G2：タップで開始・停止 ／ スクロールで字幕移動 ／ ダブルタップで終了</p>
+    <p class="hint">翻訳モードの開始中は、音声をDeepgramへ、英語原文と発表情報をOpenAIへ送信します。</p>
+  </section>
+  <section class="card"><div class="row"><h2>英語の聞き取り</h2><span class="muted">途中の認識は変わる場合があります</span></div><p id="interim" lang="en">—</p></section>
+  <details class="card" id="settings"><summary>接続・発表情報・専門用語</summary><fieldset id="settings-fields">
+    <label>バックエンドURL<input id="backend" type="url" placeholder="ローカル開発では空欄" /></label>
+    <label>接続コード<input id="token" type="password" autocomplete="off" placeholder="PCのconnection-code.txtの内容" /></label>
+    <p class="hint">APIキーではなく、アプリ専用の接続コードです。この端末に保存します。</p>
+    <label>発表タイトル<input id="title" maxlength="200" /></label>
+    <label>発表概要・背景<textarea id="context" rows="5" maxlength="8000" placeholder="抄録や研究手法・対象・主な結果を入力"></textarea></label>
+    <label class="file">概要をテキストファイルから読み込む<input id="context-file" type="file" accept=".txt,.md,text/plain,text/markdown" /></label>
+    <label>専門用語：1行に「English = 日本語」<textarea id="glossary" rows="7" spellcheck="false"></textarea></label>
+    <p class="hint">最初はCSCW共通用語を登録しています。訳語は研究に合わせて編集してください。重要な用語に絞ると認識を調整しやすくなります。</p>
+    <div class="row"><button id="save">設定を保存</button><button id="check" class="secondary">接続確認</button><button id="reset-glossary" class="secondary">CSCW用語に戻す</button></div>
+    <p id="settings-status" role="status"></p>
+  </fieldset></details>
+  <details class="card"><summary>動作診断</summary><dl id="metrics"></dl><p class="hint">受信音声の秒数・最大受信間隔・表示更新数で、ロック中に停止していないか確認します。QRテストでは画面を点灯させ、ロック試験はBeta版で行ってください。</p></details>
+  <section class="card"><div class="row"><h2>質問の履歴</h2><button id="export" class="secondary">JSON保存</button><button id="clear" class="secondary">履歴を消す</button></div><p class="hint">履歴はこの画面を開いている間だけ保持します。必要な分は終了前に保存してください。</p><div id="history"><p class="muted">翻訳が始まると、英語原文と日本語が並びます。</p></div></section>
+  <details class="card" id="copy-history"><summary>履歴をコピー用に表示</summary><p class="hint">JSON保存が動かない場合は、下のテキストを選択してコピーしてください。</p><textarea id="history-text" rows="10" readonly aria-label="コピー用の翻訳履歴"></textarea></details>
+  <footer>CSCW Translator · 0.2.2 · G2 microphone</footer>
+</main><script type="module" src="/src/main.ts"></script></body></html>

@@ -1,0 +1,14 @@
+{
+  "package_id": "com.taker.evencscwtranslator",
+  "edition": "202601",
+  "name": "CSCW Translator",
+  "version": "0.2.2",
+  "min_app_version": "2.2.10",
+  "min_sdk_version": "0.0.15",
+  "entrypoint": "index.html",
+  "permissions": [
+    { "name": "g2-microphone", "desc": "G2の英語音声を取得して日本語に翻訳します。" },
+    { "name": "network", "desc": "音声認識と翻訳のバックエンドに接続します。", "whitelist": ["http://192.168.11.10:5173", "ws://192.168.11.10:5173", "http://localhost:5173", "ws://localhost:5173"] }
+  ],
+  "supported_languages": ["ja", "en"]
+}
