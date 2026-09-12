@@ -20,9 +20,19 @@ for (let offset = 12; offset + 8 <= wav.length;) {
   offset = start + size + (size % 2)
 }
 if (!validFormat || !pcm?.length || pcm.length > 32000 * 30) throw new Error('Use 16 kHz mono PCM16 WAV, at most 30 seconds.')
-const app = createApp(config)
-app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening')
-const ws = new WebSocket(`ws://127.0.0.1:${(app.server.address() as AddressInfo).port}/ws`)
+const remote = process.env.LIVE_BACKEND_URL
+const app = remote ? undefined : createApp(config)
+let socketUrl: string
+if (remote) {
+  const url = new URL(remote)
+  if (url.origin !== 'https://even-translator-b7d8bf8c2521.herokuapp.com') throw new Error('Unexpected live test backend')
+  url.protocol = 'wss:'; url.pathname = '/ws'; url.search = ''; url.hash = ''
+  socketUrl = url.href
+} else {
+  app!.server.listen(0, '127.0.0.1'); await once(app!.server, 'listening')
+  socketUrl = `ws://127.0.0.1:${(app!.server.address() as AddressInfo).port}/ws`
+}
+const ws = new WebSocket(socketUrl)
 const messages: ServerMessage[] = []
 let failed = ''
 ws.on('error', () => { failed = 'Local WebSocket failed' })
@@ -53,7 +63,7 @@ try {
   await waitFor('stopped', 35000)
   const translations = messages.filter(message => message.type === 'translation')
   if (!translations.length) throw new Error('No translations received')
-  const report = { date: new Date().toISOString(), source: 'synthetic English speech (not G2)', audioSeconds: pcm.length / 32000, model: config.model, translations }
-  writeFileSync('.local/live-smoke.json', JSON.stringify(report, null, 2))
+  const report = { date: new Date().toISOString(), source: 'synthetic English speech (not G2)', backend: remote || 'local', audioSeconds: pcm.length / 32000, model: config.model, translations }
+  writeFileSync(remote ? '.local/live-smoke-heroku.json' : '.local/live-smoke.json', JSON.stringify(report, null, 2))
   console.log(JSON.stringify(report, null, 2))
-} finally { ws.terminate(); await app.close() }
+} finally { ws.terminate(); await app?.close() }

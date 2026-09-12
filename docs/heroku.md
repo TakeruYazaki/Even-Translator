@@ -34,3 +34,21 @@ npm.cmd run pack:heroku
 - Herokuのディスクに履歴は保存しません。スマホの履歴は再読み込み前に保存してください。
 
 公式: https://devcenter.heroku.com/articles/nodejs-support / https://devcenter.heroku.com/articles/dyno-restarts
+
+## 2026-09-12 確認結果
+
+- Herokuリリースv4、Basic web 1台で起動。HTTPSページ/healthは200、秘密ファイルは404。配信JSにAPIキー・接続コードがないことも確認。
+- ローカルの自動テスト22件と型検査に成功。Heroku Linux上のビルド・起動も成功。
+- 11.425秒の合成英語音声をHerokuのWSSへ送り、3文の日本語訳と正常停止を確認。翻訳API所要時間は約3.0/2.2/1.9秒。全体遅延ではなく、PC版と同時条件で比較した結果でもありません。
+- 実機のクラウド接続とロック中連続動作は未確認。
+- クラウド用QRは `.local/qr-heroku.png`、取り込み用は `even-translator-0.2.2.ehpk`。
+
+実APIのクラウド疎通テスト（従量料金が発生）:
+
+```powershell
+$env:LIVE_BACKEND_URL='https://even-translator-b7d8bf8c2521.herokuapp.com'
+npm.cmd run test:live
+Remove-Item Env:LIVE_BACKEND_URL
+```
+
+結果: `.local/live-smoke-heroku.json`。
