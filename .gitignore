@@ -1,11 +1,41 @@
+# Dependencies and generated builds (keep package-lock.json tracked)
 node_modules/
-dist/
-build-server/
-test-results/
-playwright-report/
+/dist/
+/build-server/
 *.ehpk
-*.log
+*.tsbuildinfo
+
+# Secrets: only the empty configuration template belongs in Git
 .env
 .env.*
 !.env.example
+.netrc
+_netrc
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+connection-code*.txt
+
+# Local connection codes, QR images, recordings, transcripts and test reports
 .local/
+/private/
+/recordings/
+/transcripts/
+/test-results/
+/playwright-report/
+/blob-report/
+/coverage/
+*.log
+
+# Editor, operating system and temporary files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+*.tmp
